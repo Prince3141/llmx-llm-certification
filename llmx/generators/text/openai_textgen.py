@@ -5,6 +5,8 @@ from ...utils import cache_request, get_models_maxtoken_dict, num_tokens_from_me
 import os
 from openai import AzureOpenAI, OpenAI
 from dataclasses import asdict
+import httpx
+import certifi
 
 
 class OpenAITextGenerator(TextGenerator):
@@ -18,6 +20,7 @@ class OpenAITextGenerator(TextGenerator):
         azure_endpoint: str = None,
         model: str = None,
         models: Dict = None,
+        http_client: httpx.Client = None,
     ):
         super().__init__(provider=provider)
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY", None)
@@ -32,10 +35,10 @@ class OpenAITextGenerator(TextGenerator):
             "organization": organization,
             "api_version": api_version,
             "azure_endpoint": azure_endpoint,
+            "http_client": http_client,
         }
         # remove keys with None values
-        self.client_args = {k: v for k,
-                            v in self.client_args.items() if v is not None}
+        self.client_args = {k: v for k, v in self.client_args.items() if v is not None}
 
         if api_type:
             if api_type == "azure":
@@ -58,8 +61,7 @@ class OpenAITextGenerator(TextGenerator):
         model = config.model or self.model_name
         prompt_tokens = num_tokens_from_messages(messages)
         max_tokens = max(
-            self.model_max_token_dict.get(
-                model, 4096) - prompt_tokens - 10, 200
+            self.model_max_token_dict.get(model, 4096) - prompt_tokens - 10, 200
         )
 
         oai_config = {
@@ -83,8 +85,7 @@ class OpenAITextGenerator(TextGenerator):
         oai_response = self.client.chat.completions.create(**oai_config)
 
         response = TextGenerationResponse(
-            text=[Message(**x.message.model_dump())
-                  for x in oai_response.choices],
+            text=[Message(**x.message.model_dump()) for x in oai_response.choices],
             logprobs=[],
             config=oai_config,
             usage=dict(oai_response.usage),
